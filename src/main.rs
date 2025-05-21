@@ -62,11 +62,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     
-    // 创建DHT配置
+    // 创建DHT配置 - 不使用default()方法
     let node_id = NodeId::from_public_key(&keypair.public)?;
-    let mut dht_config = PublicDhtConfig::default();
-    dht_config.local_id = node_id;
-    dht_config.local_public_key = keypair.public.clone();
+    
+    // 手动创建PublicDhtConfig而不是使用default()
+    let dht_config = PublicDhtConfig {
+        local_id: node_id,
+        local_public_key: keypair.public.clone(),
+        k_value: 20,
+        alpha_value: 3,
+        record_ttl: Duration::from_secs(86400), // 24小时
+        node_ttl: Duration::from_secs(7200),    // 2小时
+        refresh_interval: Duration::from_secs(3600), // 1小时
+        republish_interval: Duration::from_secs(43200), // 12小时
+        replication_factor: 3,
+    };
     
     // 创建DHT
     info!("Creating DHT...");

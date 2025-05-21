@@ -139,7 +139,7 @@ impl StunClient {
         }
         
         // 随机选择一个STUN服务器
-        let server = self.select_server()?;
+        let server = self.select_server().await?;
         
         // 创建UDP套接字
         let socket = tokio::net::UdpSocket::bind(self.local_addr).await
@@ -159,18 +159,16 @@ impl StunClient {
     }
     
     /// 选择STUN服务器
-    fn select_server(&self) -> Result<SocketAddr, StunError> {
+    async fn select_server(&self) -> Result<SocketAddr, StunError> {
         let mut rng = rand::thread_rng();
         let index = rng.gen_range(0..self.servers.len());
         let server = &self.servers[index];
         
         // 解析服务器地址
-        let server_addr = tokio::runtime::Handle::current().block_on(async {
-            tokio::net::lookup_host(server).await
-        })
-        .map_err(|e| StunError::NetworkError(format!("Failed to resolve STUN server {}: {}", server, e)))?
-        .next()
-        .ok_or_else(|| StunError::NetworkError(format!("Failed to resolve STUN server {}", server)))?;
+        let server_addr = tokio::net::lookup_host(server).await
+            .map_err(|e| StunError::NetworkError(format!("Failed to resolve STUN server {}: {}", server, e)))?
+            .next()
+            .ok_or_else(|| StunError::NetworkError(format!("Failed to resolve STUN server {}", server)))?;
         
         Ok(server_addr)
     }

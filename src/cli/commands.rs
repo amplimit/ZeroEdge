@@ -155,7 +155,7 @@ impl Command {
     }
     
     /// 联系人列表命令
-    async fn contacts(context: CommandContext) -> CommandResult {
+    async fn contacts(_context: CommandContext) -> CommandResult {
         // 获取联系人列表
         // 注意：实际应该从 UserIdentity 获取联系人列表
         // 这里暂时使用空列表

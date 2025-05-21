@@ -204,7 +204,7 @@ impl RoutingTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crypto::{KeyPair, PublicKey};
+    use crate::crypto::KeyPair; // 移除未使用的PublicKey导入
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     
     // 创建测试节点信息

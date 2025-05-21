@@ -502,7 +502,7 @@ mod tests {
         );
         alice_record.update_trust_level(TrustLevel::Verified, Some(VerificationMethod::ManualFingerprint));
         
-        let mut bob_record = TrustRecord::new(
+        let bob_record = TrustRecord::new(
             bob_id.clone(),
             bob_keypair.public.clone(),
             TrustLevel::Unverified,

@@ -147,23 +147,60 @@ impl PublicKey {
     
     /// Converts the public key to a byte array for storage or transmission
     pub fn to_bytes(&self) -> Result<Vec<u8>, KeyError> {
-        bincode::serialize(self)
-            .map_err(|e| KeyError::SerializationFailed(e.to_string()))
+        // 创建一个缓冲区来存储序列化的数据
+        let mut buffer = Vec::with_capacity(64); // 两个32字节的密钥
+        
+        // 添加签名密钥
+        buffer.extend_from_slice(self.signing_key.as_bytes());
+        
+        // 添加加密密钥
+        buffer.extend_from_slice(&self.encryption_key.to_bytes());
+        
+        Ok(buffer)
     }
     
     /// Creates a public key from a byte array
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, KeyError> {
-        bincode::deserialize(bytes)
-            .map_err(|e| KeyError::DeserializationFailed(e.to_string()))
+        // 检查字节数组长度是否正确
+        if bytes.len() != 64 {
+            return Err(KeyError::DeserializationFailed(format!("Expected 64 bytes, got {}", bytes.len())));
+        }
+        
+        // 提取签名密钥（前32字节）
+        let signing_key_bytes: [u8; 32] = bytes[0..32].try_into()
+            .map_err(|_| KeyError::DeserializationFailed("Failed to extract signing key".to_string()))?;
+        
+        // 提取加密密钥（后32字节）
+        let encryption_key_bytes: [u8; 32] = bytes[32..64].try_into()
+            .map_err(|_| KeyError::DeserializationFailed("Failed to extract encryption key".to_string()))?;
+        
+        // 创建密钥对象
+        let signing_key = EdPublicKey::from_bytes(&signing_key_bytes)
+            .map_err(|e| KeyError::DeserializationFailed(e.to_string()))?;
+        let encryption_key = X25519PublicKey::from(encryption_key_bytes);
+        
+        Ok(PublicKey {
+            signing_key,
+            encryption_key,
+        })
     }
 }
 
 impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PublicKey {{ signing_key: {:?}, encryption_key: {:?} }}", 
-               self.signing_key, self.encryption_key)
+        write!(f, "PublicKey({}...)", hex::encode(&self.signing_key.as_bytes()[0..4]))
     }
 }
+
+impl PartialEq for PublicKey {
+    fn eq(&self, other: &Self) -> bool {
+        // 比较签名密钥和加密密钥的字节表示
+        self.signing_key.as_bytes() == other.signing_key.as_bytes() &&
+        self.encryption_key.as_bytes() == other.encryption_key.as_bytes()
+    }
+}
+
+impl Eq for PublicKey {}
 
 /// Represents a secret key in the ZeroEdge system.
 // SecretKey不应该使用derive实现，需要手动实现序列化/反序列化
@@ -305,14 +342,42 @@ impl SecretKey {
     
     /// Converts the secret key to a byte array for storage
     pub fn to_bytes(&self) -> Result<Vec<u8>, KeyError> {
-        bincode::serialize(self)
-            .map_err(|e| KeyError::SerializationFailed(e.to_string()))
+        // 创建一个缓冲区来存储序列化的数据
+        let mut buffer = Vec::with_capacity(64); // 两个32字节的密钥
+        
+        // 添加签名密钥
+        buffer.extend_from_slice(self.signing_key.as_bytes());
+        
+        // 添加加密密钥
+        buffer.extend_from_slice(&self.encryption_key.to_bytes());
+        
+        Ok(buffer)
     }
     
     /// Creates a secret key from a byte array
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, KeyError> {
-        bincode::deserialize(bytes)
-            .map_err(|e| KeyError::DeserializationFailed(e.to_string()))
+        // 检查字节数组长度是否正确
+        if bytes.len() != 64 {
+            return Err(KeyError::DeserializationFailed(format!("Expected 64 bytes, got {}", bytes.len())));
+        }
+        
+        // 提取签名密钥（前32字节）
+        let signing_key_bytes: [u8; 32] = bytes[0..32].try_into()
+            .map_err(|_| KeyError::DeserializationFailed("Failed to extract signing key".to_string()))?;
+        
+        // 提取加密密钥（后32字节）
+        let encryption_key_bytes: [u8; 32] = bytes[32..64].try_into()
+            .map_err(|_| KeyError::DeserializationFailed("Failed to extract encryption key".to_string()))?;
+        
+        // 创建密钥对象
+        let signing_key = EdSecretKey::from_bytes(&signing_key_bytes)
+            .map_err(|e| KeyError::DeserializationFailed(e.to_string()))?;
+        let encryption_key = StaticSecret::from(encryption_key_bytes);
+        
+        Ok(SecretKey {
+            signing_key,
+            encryption_key,
+        })
     }
 }
 

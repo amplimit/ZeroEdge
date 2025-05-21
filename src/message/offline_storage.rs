@@ -1,4 +1,4 @@
-use crate::message::Message;
+// 不再需要导入 Message
 use crate::message::message_types::MessageError;
 use crate::identity::{UserId, DeviceId};
 use crate::dht::NodeId;
@@ -482,29 +482,17 @@ impl OfflineStorage {
             message_bytes.extend_from_slice(&shards_vec[i]);
         }
         
-        // 移除填充的字节 - 找到消息的长度
-        if message_bytes.len() > 0 {
-            // 尝试找出实际消息的长度
-            // 在实际应用中，我们可能需要在消息中存储其长度
-            // 或者使用其他方法标记填充的边界
-            // 创建一个空消息对象来估计大小
-            let empty_message = Message::new(
-                crate::message::message_types::MessageType::Direct,
-                crate::identity::UserId::new_random(),
-                None,
-                crate::crypto::PublicKey::dummy(),
-                Vec::new(),
-                "text/plain".to_string(),
-                0,
-                None
-            );
-            
-            let actual_message_len = bincode::serialized_size(&empty_message)
-                .unwrap_or(0) as usize;
-            
-            if message_bytes.len() > actual_message_len {
-                message_bytes.truncate(actual_message_len);
-            }
+        // 在消息头部存储实际消息长度
+        // 在实际应用中，我们应该在消息分片中包含实际消息长度
+        // 这里我们假设消息字节已经正确地包含了所有必要的数据
+        // 不进行截断，直接尝试反序列化
+        
+        // 打印调试信息
+        log::debug!("Attempting to deserialize message of {} bytes", message_bytes.len());
+        
+        // 如果消息字节为空，返回错误
+        if message_bytes.is_empty() {
+            return Err(OfflineStorageError::DecodingFailed("Empty message bytes".to_string()));
         }
         
         // 反序列化消息

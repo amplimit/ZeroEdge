@@ -134,14 +134,16 @@ mod tests {
         // 记录原始时间戳
         let original_timestamp = receipt.timestamp;
         
-        // 等待一小段时间
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        // 强制设置一个较早的时间戳，确保更新后的时间戳会更大
+        receipt.timestamp = original_timestamp.saturating_sub(100);
         
         // 更新状态
         receipt.update_status(DeliveryStatus::Delivered);
         
         assert_eq!(receipt.status, DeliveryStatus::Delivered);
-        assert!(receipt.timestamp > original_timestamp);
+        assert!(receipt.timestamp > original_timestamp.saturating_sub(100), 
+               "Expected timestamp {} to be greater than {}", 
+               receipt.timestamp, original_timestamp.saturating_sub(100));
     }
     
     #[test]

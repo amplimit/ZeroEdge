@@ -1,187 +1,206 @@
-# ZeroEdge: 完全去中心化的P2P聊天系统
+# ZeroEdge: A Fully Decentralized P2P Chat System
 
-ZeroEdge是一个纯点对点(P2P)、完全去中心化的通信系统，设计目标是提供安全、私密的聊天功能，而无需依赖任何中央服务器或中间商。
+ZeroEdge is a pure peer-to-peer (P2P), fully decentralized communication system designed to provide secure, private chat functionality without relying on any central servers or intermediaries.
 
-## 特性
+## Features
 
-- **完全去中心化**: 没有中央服务器，所有通信直接在节点之间进行
-- **端到端加密**: 所有消息均经过强加密，只有预期接收者可以解密
-- **离线消息**: 使用分布式存储确保即使接收方不在线也能收到消息
-- **NAT穿透**: 使用先进的NAT穿透技术确保设备能够直接通信
-- **多设备支持**: 可以在多个设备上使用同一身份
-- **群组聊天**: 支持加密的群组通信
-- **抗审查**: 设计抵抗网络审查，确保自由通信
+- **Fully Decentralized**: No central servers, all communication happens directly between nodes
+- **End-to-End Encryption**: All messages are strongly encrypted, only the intended recipient can decrypt them
+- **Offline Messaging**: Uses distributed storage to ensure messages are received even when the recipient is offline
+- **NAT Traversal**: Uses advanced NAT traversal techniques to ensure devices can communicate directly
+- **Multi-Device Support**: Use the same identity across multiple devices
+- **Group Chat**: Support for encrypted group communications
+- **Censorship Resistant**: Designed to resist network censorship, ensuring free communication
 
-## 目录结构
+## Directory Structure
 
 ```
 ZeroEdge/
-├── src/                 # 源代码
-│   ├── crypto/          # 密码学模块
-│   ├── dht/             # 分布式哈希表
-│   ├── identity/        # 用户身份管理
-│   ├── message/         # 消息处理
-│   ├── nat/             # NAT穿透
-│   ├── network/         # 网络通信
-│   ├── storage/         # 数据存储
-│   └── utils/           # 工具函数
-├── docs/                # 文档
-└── tests/               # 测试
+├── src/                 # Source code
+│   ├── cli/             # Command-line interface
+│   ├── crypto/          # Cryptography module
+│   ├── dht/             # Distributed hash table
+│   ├── identity/        # User identity management
+│   ├── message/         # Message processing
+│   ├── nat/             # NAT traversal
+│   ├── network/         # Network communication
+│   ├── storage/         # Data storage
+│   └── utils/           # Utility functions
+├── docs/                # Documentation
+└── tests/               # Tests
 ```
 
-## 构建与运行
+## Building and Running
 
-### 前提条件
+### Prerequisites
 
-- Rust 1.66.0或更高版本
-- Cargo包管理器
-- 建议：Ubuntu 22.04 LTS或Windows 10/11
+- Rust 1.66.0 or higher
+- Cargo package manager
+- Recommended: Ubuntu 22.04 LTS or Windows 10/11
 
-### 构建
+### Building
 
-1. 克隆仓库:
+1. Clone the repository:
 ```bash
 git clone https://github.com/amplimit/ZeroEdge.git
 cd ZeroEdge
 ```
 
-2. 构建项目:
+2. Build the project:
 ```bash
 cargo build --release
 ```
 
-### 运行
+### Running
 
-执行以下命令启动ZeroEdge客户端:
+Execute the following command to start the ZeroEdge client:
 
 ```bash
 cargo run --release
 ```
 
-默认配置文件将在首次运行时创建，位于`~/.config/zeroedge/config.json`（Linux/macOS）或`%APPDATA%\ZeroEdge\config.json`（Windows）。
+The default configuration file will be created on first run, located at `~/.config/zeroedge/config.json` (Linux/macOS) or `%APPDATA%\ZeroEdge\config.json` (Windows).
 
-## 使用方法
+## Usage
 
-ZeroEdge当前为命令行应用程序。以下是基本操作:
+ZeroEdge is currently a command-line application. Here are the basic operations:
 
-1. **创建身份**:
-   首次运行时，系统会提示创建新身份。输入显示名称并按下回车。
+1. **Creating an Identity**:
+   On first run, the system will prompt you to create a new identity. Enter a display name and press Enter.
 
-2. **添加联系人**:
-   通过共享身份和手动验证添加联系人:
+2. **Viewing Your Identity**:
    ```
-   /add <identity-code>
-   ```
-   然后进行验证:
-   ```
-   /verify <contact-id> <verification-code>
+   /whoami
    ```
 
-3. **发送消息**:
+3. **Sending Messages**:
    ```
-   /msg <contact-id> 您的消息内容
-   ```
-
-4. **创建群组**:
-   ```
-   /create-group <group-name>
+   /send <node_id> <message>
    ```
 
-5. **添加成员到群组**:
-   ```
-   /add-to-group <group-id> <contact-id>
-   ```
-
-6. **列出联系人**:
+4. **Listing Contacts**:
    ```
    /contacts
    ```
 
-7. **显示帮助**:
+5. **Creating a Group**:
    ```
-   /help
+   /create-group <group-name>
    ```
 
-## 工作原理
+6. **Adding Members to a Group**:
+   ```
+   /add-to-group <group-id> <node-id>
+   ```
 
-ZeroEdge使用分布式哈希表(DHT)进行节点发现，结合进阶的NAT穿透技术实现点对点通信。关键技术包括:
+7. **Finding a Node**:
+   ```
+   /find <node-id>
+   ```
 
-1. **Kademlia DHT**: 用于高效节点查找
-2. **双层DHT**: 公共DHT用于基本发现，私有DHT用于朋友间加密数据交换
-3. **Signal协议**: 提供前向安全性的消息加密
-4. **Reed-Solomon编码**: 实现容错的离线消息存储
-5. **多种NAT穿透技术**: 包括UDP打洞、STUN和智能中继系统
+8. **Checking Network Status**:
+   ```
+   /status
+   ```
 
-## 开发
+9. **Viewing DHT Routing Table**:
+   ```
+   /dht-routes
+   ```
 
-### 代码规范
+10. **Displaying Help**:
+    ```
+    /help
+    ```
 
-- 使用Rust 2021 Edition
-- 遵循Rust API指南
-- 所有公共API必须有文档注释
-- 测试覆盖率至少80%
+11. **Exiting the Application**:
+    ```
+    /exit
+    ```
 
-## 运行指南
+## How It Works
 
-### 初次运行
+ZeroEdge uses a distributed hash table (DHT) for node discovery, combined with advanced NAT traversal techniques to enable peer-to-peer communication. Key technologies include:
 
-1. 编译并运行ZeroEdge:
+1. **Kademlia DHT**: For efficient node lookup
+2. **Dual-layer DHT**: Public DHT for basic discovery, private DHT for encrypted data exchange between friends
+3. **Signal Protocol**: For forward-secure message encryption
+4. **Reed-Solomon Encoding**: For fault-tolerant offline message storage
+5. **Multiple NAT Traversal Techniques**: Including UDP hole punching, STUN, and smart relay systems
+
+## Development
+
+### Code Standards
+
+- Uses Rust 2021 Edition
+- Follows the Rust API Guidelines
+- All public APIs must have documentation comments
+- Test coverage of at least 80%
+
+## Running Guide
+
+### First Run
+
+1. Compile and run ZeroEdge:
    ```bash
    cargo run --release
    ```
 
-2. 创建你的第一个身份:
+2. Create your first identity:
    ```
-   输入显示名称: [你的名字]
-   ```
-
-3. 程序将生成你的身份并展示身份ID，记下这个ID以分享给你的联系人
-
-### 设置NAT穿透
-
-ZeroEdge自动尝试NAT穿透，但某些网络环境可能需要额外配置:
-
-1. 检查NAT类型:
-   ```
-   /check-nat
+   Enter display name: [Your Name]
    ```
 
-2. 如果NAT类型是"Symmetric"，可能需要更多中继节点:
+3. The program will generate your identity and display the identity ID. Note this ID to share with your contacts.
+
+### Setting Up NAT Traversal
+
+ZeroEdge automatically attempts NAT traversal, but some network environments may require additional configuration:
+
+1. Check NAT type:
    ```
-   /set-relays auto
+   /status
    ```
 
-### 故障排除
+2. If NAT type is "Symmetric", you may need more relay nodes (note: relay functionality is currently under development)
 
-1. **无法连接到DHT网络**:
-   - 检查网络连接
-   - 尝试使用不同的引导节点:
+### Troubleshooting
+
+1. **Cannot Connect to DHT Network**:
+   - Check your network connection
+   - Try using different bootstrap nodes
+
+2. **Message Sending Fails**:
+   - Check if the contact is online
+   - Verify NAT traversal connection:
      ```
-     /set-bootstrap custom
-     ```
-
-2. **消息发送失败**:
-   - 检查联系人是否在线
-   - 验证有NAT穿透的连接:
-     ```
-     /check-connection <contact-id>
+     /status
      ```
 
-3. **日志查看**:
-   启用详细日志记录:
+3. **Viewing Logs**:
+   Enable verbose logging:
    ```
-   /set-log-level debug
+   cargo run --release -- --verbose
    ```
 
-## 贡献
+## Cross-Platform Compatibility
 
-欢迎贡献代码、报告问题或提出建议。请查看[贡献指南](CONTRIBUTING.md)了解更多信息。
+ZeroEdge is designed to work on multiple platforms, but there are some known issues:
 
-## 许可证
+- **Linux Compilation**: While the project compiles successfully on Windows, there may be issues when compiling on Linux environments (such as GitHub Actions). These issues are related to path separators, platform-specific code, and file permissions.
+- **CI/CD Pipeline**: The GitHub Actions configuration has been updated to support multi-platform testing (Ubuntu, Windows, macOS), code formatting checks, and Clippy static analysis.
 
-本项目采用MIT许可证 - 详见[LICENSE](LICENSE)文件。
+If you encounter platform-specific issues, please report them on the issue tracker.
 
-## 联系方式
+## Contributing
 
-- 项目主页: https://github.com/amplimit/ZeroEdge
-- 问题报告: https://github.com/amplimit/ZeroEdge/issues
+Contributions in the form of code, bug reports, or suggestions are welcome. Please check the [contribution guidelines](CONTRIBUTING.md) for more information.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+- Project Homepage: https://github.com/amplimit/ZeroEdge
+- Issue Reporting: https://github.com/amplimit/ZeroEdge/issues

@@ -121,32 +121,6 @@ ZeroEdge使用分布式哈希表(DHT)进行节点发现，结合进阶的NAT穿�
 - 所有公共API必须有文档注释
 - 测试覆盖率至少80%
 
-### 添加新功能
-
-1. 创建功能分支:
-   ```
-   git checkout -b feature/your-feature-name
-   ```
-
-2. 实现功能和测试
-
-3. 运行测试:
-   ```
-   cargo test
-   ```
-
-4. 提交更改:
-   ```
-   git commit -am "Add your feature description"
-   ```
-
-5. 推送分支:
-   ```
-   git push origin feature/your-feature-name
-   ```
-
-6. 创建Pull Request
-
 ## 运行指南
 
 ### 初次运行

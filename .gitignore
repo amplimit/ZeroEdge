@@ -1,0 +1,30 @@
+# Generated files
+/target/
+Cargo.lock
+**/*.rs.bk
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug/Logs
+*.log
+/logs/
+
+# User configs and local development files
+/local/
+.env
+*.local.toml
+
+# Test data
+/test_data/
+
+# Documentation builds
+/doc/

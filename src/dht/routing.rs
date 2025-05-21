@@ -194,6 +194,11 @@ impl RoutingTable {
             Vec::new()
         }
     }
+    
+    /// 获取路由表中的所有节点
+    pub fn get_all_nodes(&self) -> impl Iterator<Item = (NodeId, NodeInfo)> + '_ {
+        self.nodes.iter().map(|(id, node)| (id.clone(), node.clone()))
+    }
 }
 
 #[cfg(test)]

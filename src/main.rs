@@ -3,24 +3,55 @@ use zero_edge::network::{NetworkManager, NetworkConfig};
 use zero_edge::identity::UserIdentity;
 use zero_edge::identity::device::DeviceType;
 use zero_edge::nat::NatTraversal;
+use zero_edge::cli::CommandProcessor;
 
 use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::Duration;
-use log::{info, warn};
+use std::sync::Arc;
+use log::{info, warn, error};
 use env_logger::Env;
-use tokio::time::sleep;
+use tokio::sync::mpsc;
+use tokio::task;
+use tokio::signal::ctrl_c;
+use clap::{Parser, ArgAction};
+use colored::*;
+
+/// 命令行参数
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    /// 节点名称
+    #[clap(short, long, default_value = "ZeroEdge Node")]
+    name: String,
+    
+    /// 监听端口
+    #[clap(short, long, default_value = "0")]
+    port: u16,
+    
+    /// 日志级别
+    #[clap(long, default_value = "info")]
+    log_level: String,
+    
+    /// 启用详细日志
+    #[clap(short, long, action = ArgAction::SetTrue)]
+    verbose: bool,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化日志
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    // 解析命令行参数
+    let args = Args::parse();
     
-    info!("Starting ZeroEdge node...");
+    // 初始化日志
+    let log_level = if args.verbose { "debug" } else { &args.log_level };
+    env_logger::Builder::from_env(Env::default().default_filter_or(log_level)).init();
+    
+    info!("{}", format!("Starting ZeroEdge node {}...", args.name).green().bold());
     
     // 生成身份
     info!("Generating identity...");
-    let identity = UserIdentity::new("ZeroEdge Node".to_string())?;
+    let identity = UserIdentity::new(args.name.clone())?;
     let user_id = identity.id.clone();
     let keypair = identity.keypair.clone();
     
@@ -40,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Device ID: {}", device.device_id);
     
     // 配置本地地址
-    let local_addr = SocketAddr::from_str("0.0.0.0:0")?;
+    let local_addr = SocketAddr::from_str(&format!("0.0.0.0:{}", args.port))?;
     
     // 获取NAT映射
     info!("Discovering NAT mapping...");
@@ -98,12 +129,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting network...");
     network.start().await?;
     
-    // 简单的指令循环
-    info!("ZeroEdge node is running. Press Ctrl+C to exit.");
-    info!("Use 'help' for available commands.");
+    // 创建命令处理器
+    info!("Initializing command interface...");
+    let (mut command_processor, command_rx, result_tx) = CommandProcessor::new(
+        dht,
+        network,
+        identity,
+    );
     
-    // 持续运行
-    loop {
-        sleep(Duration::from_secs(1)).await;
+    // 启动命令处理线程
+    let command_handle = task::spawn(async move {
+        command_handler(command_rx, result_tx).await;
+    });
+    
+    // 启动命令处理器
+    let processor_handle = task::spawn(async move {
+        if let Err(e) = command_processor.start().await {
+            error!("Command processor error: {}", e);
+        }
+    });
+    
+    // 等待Ctrl+C信号
+    match ctrl_c().await {
+        Ok(()) => {
+            info!("Shutting down...");
+        },
+        Err(e) => {
+            error!("Error waiting for Ctrl+C: {}", e);
+        }
+    }
+    
+    // 等待任务完成
+    let _ = command_handle.await;
+    let _ = processor_handle.await;
+    
+    info!("ZeroEdge node stopped.");
+    Ok(())
+}
+
+/// 命令处理函数
+async fn command_handler(
+    mut command_rx: mpsc::Receiver<String>,
+    result_tx: mpsc::Sender<zero_edge::cli::commands::CommandResult>,
+) {
+    use zero_edge::cli::commands::{Command, CommandContext, CommandResult};
+    
+    while let Some(cmd_str) = command_rx.recv().await {
+        // 解析命令字符串
+        // 注意：这里简化了解析逻辑，实际应该使用更健壮的方式
+        if cmd_str.contains("Command::Help") {
+            let _ = result_tx.send(Command::Help.execute(CommandContext {
+                dht: Arc::new(PublicDht::new(PublicDhtConfig::default())),
+                network: Arc::new(NetworkManager::new(NetworkConfig::default(), vec![]).await.unwrap()),
+                identity: Arc::new(UserIdentity::new("Temp".to_string()).unwrap()),
+                args: vec![],
+            }).await).await;
+        } else if cmd_str.contains("Command::Exit") {
+            let _ = result_tx.send(CommandResult::Exit).await;
+            break;
+        } else {
+            // 其他命令处理
+            let _ = result_tx.send(CommandResult::Info(format!("Processing command: {}", cmd_str))).await;
+        }
     }
 }

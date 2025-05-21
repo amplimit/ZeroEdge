@@ -135,7 +135,7 @@ impl UserProfile {
 }
 
 /// Represents a user's full identity
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct UserIdentity {
     /// The user's ID
     pub id: UserId,

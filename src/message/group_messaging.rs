@@ -2,6 +2,7 @@ use crate::identity::{UserId, UserProfile};
 use crate::crypto::{PublicKey, KeyPair};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
+use std::str::FromStr; // Added for FromStr
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use rand::Rng;
@@ -28,6 +29,44 @@ pub struct GroupId(pub [u8; 32]);
 impl std::fmt::Display for GroupId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", hex::encode(&self.0))
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParseGroupIdError(String);
+
+impl FromStr for GroupId {
+    type Err = ParseGroupIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut S = s;
+        if s.starts_with("0x") {
+            S = &s[2..];
+        }
+        
+        if S.len() != 64 {
+            return Err(ParseGroupIdError(format!(
+                "Invalid length for GroupId: expected 64 hex chars, got {}",
+                S.len()
+            )));
+        }
+        match hex::decode(S) {
+            Ok(bytes) => {
+                if bytes.len() == 32 {
+                    let mut arr = [0u8; 32];
+                    arr.copy_from_slice(&bytes);
+                    Ok(GroupId(arr))
+                } else {
+                    // This case should ideally not be reached if hex::decode works as expected
+                    // and S.len() == 64, as 64 hex chars decode to 32 bytes.
+                    Err(ParseGroupIdError(format!(
+                        "Decoded byte length is not 32: got {}",
+                        bytes.len()
+                    )))
+                }
+            }
+            Err(e) => Err(ParseGroupIdError(format!("Invalid hex string: {}", e))),
+        }
     }
 }
 
@@ -290,6 +329,67 @@ impl GroupMembership {
         
         Ok(())
     }
+
+    /// 添加成员 (简化版)
+    pub fn add_member_simplified(
+        &mut self,
+        member_id: UserId,
+        member_public_key: PublicKey,
+        member_display_name: Option<String>,
+        added_by: UserId,
+        role: MemberRole,
+    ) -> Result<(), GroupMessageError> {
+        // 检查添加者权限
+        if let Some(adder) = self.members.get(&added_by) {
+            if !adder.role.can_manage() {
+                return Err(GroupMessageError::PermissionDenied(
+                    "Only admins and owners can add members".to_string()
+                ));
+            }
+        } else {
+            return Err(GroupMessageError::MemberNotFound(
+                format!("Adding user {} not found in group", added_by)
+            ));
+        }
+        
+        // 检查成员是否已存在
+        if self.members.contains_key(&member_id) {
+            return Err(GroupMessageError::OperationFailed(
+                format!("Member {} already exists in group", member_id)
+            ));
+        }
+        
+        // 检查成员限制
+        if self.members.len() >= self.info.member_limit {
+            return Err(GroupMessageError::OperationFailed(
+                "Group has reached member limit".to_string()
+            ));
+        }
+        
+        // 创建新成员
+        let mut new_member = GroupMember::new(
+            member_id.clone(),
+            role,
+            member_public_key,
+            Some(added_by),
+        );
+
+        if let Some(name) = member_display_name {
+            new_member = new_member.with_display_name(name);
+        }
+        
+        // 添加到成员列表
+        self.members.insert(member_id, new_member);
+        
+        // 更新群组信息
+        self.info.member_count = self.members.len();
+        self.info.updated_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        
+        Ok(())
+    }
     
     /// 移除成员
     pub fn remove_member(
@@ -398,7 +498,57 @@ impl GroupMembership {
 mod tests {
     use super::*;
     use crate::crypto::KeyPair;
-    
+    use std::str::FromStr; // For GroupId::from_str testing
+
+    #[test]
+    fn test_group_id_from_str() {
+        let valid_hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let valid_bytes = hex::decode(valid_hex).unwrap();
+        let mut expected_arr = [0u8; 32];
+        expected_arr.copy_from_slice(&valid_bytes);
+
+        // Test valid 64-char hex string
+        assert_eq!(GroupId::from_str(valid_hex), Ok(GroupId(expected_arr.clone())));
+
+        // Test valid 66-char hex string with "0x" prefix
+        let valid_hex_prefix = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assert_eq!(GroupId::from_str(valid_hex_prefix), Ok(GroupId(expected_arr.clone())));
+
+        // Test invalid hex characters
+        let invalid_hex_char = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdeg"; // 'g' is invalid
+        assert!(GroupId::from_str(invalid_hex_char).is_err());
+        match GroupId::from_str(invalid_hex_char) {
+            Err(ParseGroupIdError(msg)) => assert!(msg.contains("Invalid hex string")),
+            _ => panic!("Expected ParseGroupIdError for invalid hex char"),
+        }
+
+
+        // Test too short hex string
+        let short_hex = "0123456789abcdef";
+        assert!(GroupId::from_str(short_hex).is_err());
+         match GroupId::from_str(short_hex) {
+            Err(ParseGroupIdError(msg)) => assert!(msg.contains("Invalid length")),
+            _ => panic!("Expected ParseGroupIdError for short hex"),
+        }
+
+
+        // Test too long hex string
+        let long_hex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef00";
+        assert!(GroupId::from_str(long_hex).is_err());
+        match GroupId::from_str(long_hex) {
+            Err(ParseGroupIdError(msg)) => assert!(msg.contains("Invalid length")),
+            _ => panic!("Expected ParseGroupIdError for long hex"),
+        }
+        
+        // Test with "0x" prefix and invalid length
+        let short_hex_prefix = "0x0123456789abcdef";
+        assert!(GroupId::from_str(short_hex_prefix).is_err());
+        match GroupId::from_str(short_hex_prefix) {
+            Err(ParseGroupIdError(msg)) => assert!(msg.contains("Invalid length")),
+            _ => panic!("Expected ParseGroupIdError for short hex with prefix"),
+        }
+    }
+
     #[test]
     fn test_group_creation() {
         // 创建创建者密钥对
@@ -504,5 +654,121 @@ mod tests {
         // 验证成员是否移除成功
         assert!(!group.is_member(&member_id));
         assert_eq!(group.info.member_count, 1);
+    }
+
+    #[test]
+    fn test_group_add_member_simplified() {
+        // Setup creator
+        let creator_keypair = KeyPair::generate().unwrap();
+        let creator_id = UserId::from_public_key(&creator_keypair.public).unwrap();
+        let creator_profile = UserProfile::new("Creator".to_string());
+
+        // Create group
+        let mut group = GroupMembership::new(
+            "Simplified Test Group".to_string(),
+            creator_id.clone(),
+            &creator_profile,
+            &creator_keypair,
+            false,
+        ).unwrap();
+        assert_eq!(group.info.member_count, 1);
+
+        // Setup new member 1
+        let member1_keypair = KeyPair::generate().unwrap();
+        let member1_id = UserId::from_public_key(&member1_keypair.public).unwrap();
+        let member1_display_name = "Member One".to_string();
+
+        // Test: Successfully add new member by owner with display name
+        let result = group.add_member_simplified(
+            member1_id.clone(),
+            member1_keypair.public.clone(),
+            Some(member1_display_name.clone()),
+            creator_id.clone(),
+            MemberRole::Member,
+        );
+        assert!(result.is_ok());
+        assert_eq!(group.info.member_count, 2);
+        assert!(group.is_member(&member1_id));
+        let member1_info = group.get_member(&member1_id).unwrap();
+        assert_eq!(member1_info.role, MemberRole::Member);
+        assert_eq!(member1_info.display_name, Some(member1_display_name));
+        assert_eq!(member1_info.invited_by, Some(creator_id.clone()));
+
+        // Setup new member 2
+        let member2_keypair = KeyPair::generate().unwrap();
+        let member2_id = UserId::from_public_key(&member2_keypair.public).unwrap();
+
+        // Test: Successfully add another member by owner without display name
+        let result_no_display_name = group.add_member_simplified(
+            member2_id.clone(),
+            member2_keypair.public.clone(),
+            None, // No display name
+            creator_id.clone(),
+            MemberRole::Admin, // Add as admin for next test
+        );
+        assert!(result_no_display_name.is_ok());
+        assert_eq!(group.info.member_count, 3);
+        assert!(group.is_member(&member2_id));
+        let member2_info = group.get_member(&member2_id).unwrap();
+        assert_eq!(member2_info.role, MemberRole::Admin);
+        assert_eq!(member2_info.display_name, None);
+
+        // Setup new member 3
+        let member3_keypair = KeyPair::generate().unwrap();
+        let member3_id = UserId::from_public_key(&member3_keypair.public).unwrap();
+        
+        // Test: Permission Denied - Try to add by member1 (who is MemberRole::Member)
+        let result_permission_denied = group.add_member_simplified(
+            member3_id.clone(),
+            member3_keypair.public.clone(),
+            None,
+            member1_id.clone(), // Added by member1
+            MemberRole::Member,
+        );
+        assert!(matches!(result_permission_denied, Err(GroupMessageError::PermissionDenied(_))));
+        assert_eq!(group.info.member_count, 3); // Count should not change
+
+        // Test: Permission OK - Try to add by member2 (who is MemberRole::Admin)
+         let result_permission_ok_admin = group.add_member_simplified(
+            member3_id.clone(),
+            member3_keypair.public.clone(),
+            None,
+            member2_id.clone(), // Added by member2 (Admin)
+            MemberRole::Member,
+        );
+        assert!(result_permission_ok_admin.is_ok());
+        assert_eq!(group.info.member_count, 4); 
+
+
+        // Test: Member Exists - Try to add member1 again
+        let result_member_exists = group.add_member_simplified(
+            member1_id.clone(),
+            member1_keypair.public.clone(),
+            Some("Attempt Re-add".to_string()),
+            creator_id.clone(),
+            MemberRole::Member,
+        );
+        assert!(matches!(result_member_exists, Err(GroupMessageError::OperationFailed(_))));
+        if let Err(GroupMessageError::OperationFailed(msg)) = result_member_exists {
+            assert!(msg.contains("already exists in group"));
+        }
+        assert_eq!(group.info.member_count, 4); // Count should not change
+
+        // Test: Group Full
+        group.info.member_limit = group.members.len(); // Set limit to current size (4)
+        let member4_keypair = KeyPair::generate().unwrap();
+        let member4_id = UserId::from_public_key(&member4_keypair.public).unwrap();
+        let result_group_full = group.add_member_simplified(
+            member4_id.clone(),
+            member4_keypair.public.clone(),
+            None,
+            creator_id.clone(),
+            MemberRole::Member,
+        );
+        assert!(matches!(result_group_full, Err(GroupMessageError::OperationFailed(_))));
+         if let Err(GroupMessageError::OperationFailed(msg)) = result_group_full {
+            assert!(msg.contains("Group has reached member limit"));
+        }
+        assert_eq!(group.info.member_count, 4); // Count should not change
     }
 }

@@ -2,7 +2,7 @@ mod message_types;
 mod encryption;
 mod offline_storage;
 mod delivery;
-mod group_messaging;
+pub mod group_messaging; // Made this module public
 
 pub use message_types::{
     Message, MessageType, MessageStatus, 

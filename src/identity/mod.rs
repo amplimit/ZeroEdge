@@ -6,7 +6,7 @@ mod trust;
 pub use user::{UserId, UserProfile, UserIdentity, UserIdentityError};
 pub use device::{DeviceId, DeviceInfo};
 pub use verification::{VerificationMethod, VerificationStatus};
-pub use trust::{TrustLevel, TrustStore};
+pub use trust::{TrustLevel, TrustStore, TrustRecord}; // Added TrustRecord here
 
 /*
  * Identity management module for ZeroEdge

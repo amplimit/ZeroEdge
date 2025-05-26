@@ -10,7 +10,7 @@ use std::convert::TryFrom;
 // 移除未使用的导入
 // use std::collections::HashMap;
 use chrono::{DateTime, Utc}; // Added chrono import
-use log::{info, error};
+use log::{info, error, warn}; // Added warn here
 use colored::*;
 use indoc::indoc;
 
@@ -171,33 +171,25 @@ impl Command {
     /// 联系人列表命令
     async fn contacts(context: CommandContext) -> CommandResult {
         let trust_store = &context.identity.trust_store;
-        let trusted_records = match trust_store.get_all() {
-            Ok(records) => records,
-            Err(e) => {
-                error!("Failed to access trust store: {}", e);
-                return CommandResult::Error(format!("Failed to access trust store: {}", e));
-            }
-        };
+        let contact_records: Vec<&TrustRecord> = trust_store.get_all().collect();
 
-        if trusted_records.is_empty() {
+        if contact_records.is_empty() {
             return CommandResult::Info("No contacts found.".to_string());
         }
 
         let mut result = String::from("Contacts:\n");
-        for (i, record) in trusted_records.iter().enumerate() {
-            let user_id_str = record.user_id.to_string();
-            let display_name = record.additional_info.get("nickname")
-                .or_else(|| record.additional_info.get("display_name"))
-                .map(|s| s.as_str())
-                .unwrap_or_else(|| user_id_str.as_str());
-
+        for (i, contact_record) in contact_records.iter().enumerate() {
+            let name = contact_record.additional_info.get("nickname")
+                .or_else(|| contact_record.additional_info.get("display_name"))
+                .cloned()
+                .unwrap_or_else(|| contact_record.user_id.to_string());
+            
             result.push_str(&format!("{}. {} ({})\n",
                 i + 1,
-                display_name.green(),
-                user_id_str.cyan()
+                name.green(),
+                contact_record.user_id.to_string().cyan()
             ));
         }
-
         CommandResult::Info(result)
     }
 
@@ -266,7 +258,8 @@ impl Command {
         let mut member_display_name: Option<String> = None;
 
         // 4.b. Check TrustStore
-        if let Some(trust_record) = context.identity.trust_store.get(&contact_user_id) {
+        // Correctly pass &UserId by wrapping contact_user_id.0
+        if let Some(trust_record) = context.identity.trust_store.get(&UserId(contact_user_id.0)) {
             member_public_key = Some(trust_record.public_key.clone());
             // Prefer "nickname", then "display_name" from additional_info
             member_display_name = trust_record.additional_info.get("nickname")
@@ -295,14 +288,10 @@ impl Command {
                         // Since it doesn't, we log a warning and proceed. This means only trusted contacts can be added
                         // if their PK is not found otherwise.
                         // The prompt implies nodes[0].public_key.clone() exists.
-                        // Let's assume NodeInfo *does* have a public_key for this exercise.
-                        if let Some(pk) = node_info.public_key.clone() { // Assuming public_key: Option<PublicKey> in NodeInfo
-                             member_public_key = Some(pk);
-                        } else {
-                            // This path taken if NodeInfo has Option<PublicKey> and it's None
-                             warn!("Node {} found in DHT but has no public key.", contact_id_str);
-                        }
+                        // NodeInfo.public_key is NOT an Option, so direct assignment.
+                        member_public_key = Some(node_info.public_key.clone());
                     } else {
+                        // This case means find_node succeeded but returned an empty list
                         warn!("Contact {} not found in DHT.", contact_id_str);
                     }
                 }
@@ -397,7 +386,7 @@ impl Command {
                 Your Identity:
                   User ID: {}
                   Public Key: {}
-                  Profile Last Updated: {}
+                  Created: {}
                   Connected Devices: {}
             "},
             identity.id.to_string().green(),

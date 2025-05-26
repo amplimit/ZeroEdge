@@ -124,7 +124,7 @@ pub struct NetworkManager {
     config: NetworkConfig,
     
     /// NAT穿透管理器
-    nat_traversal: Arc<NatTraversal>,
+    pub nat_traversal: Arc<NatTraversal>, // Made this field public
     
     /// 对等点映射
     peers: Arc<RwLock<HashMap<String, Peer>>>,

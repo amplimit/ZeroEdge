@@ -549,7 +549,7 @@ impl DoubleRatchet {
 
         
         // 解密消息 - 复制消息密钥信息以在错误中使用
-        let message_key_hex = hex::encode(&message_key);
+        let _message_key_hex = hex::encode(&message_key); // Prefixed with underscore
         let key_len = message_key.len();
 
         

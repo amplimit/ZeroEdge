@@ -4,6 +4,7 @@ use crate::identity::UserIdentity;
 use crate::message::{Message, MessageType};
 
 use std::sync::Arc;
+use std::convert::TryFrom;
 // 移除未使用的导入
 // use std::collections::HashMap;
 use log::{info, error};
@@ -110,20 +111,34 @@ impl Command {
         let message_text = &context.args[1..].join(" ");
         
         // 解析目标节点ID
-        let _target_node_id = match NodeId::from_str(target_id) {
+        let target_node_id = match NodeId::from_str(target_id) {
             Ok(id) => id,
             Err(_) => return CommandResult::Error(format!("Invalid node ID: {}", target_id)),
         };
-        // 注意：我们在这里不使用target_node_id，因为类型转换问题
+        
+        // 首先从DHT查找目标节点
+        let target_nodes = match context.dht.find_node(&target_node_id).await {
+            Ok(nodes) => nodes,
+            Err(e) => return CommandResult::Error(format!("Failed to find target node: {}", e)),
+        };
+        
+        if target_nodes.is_empty() {
+            return CommandResult::Error(format!("Target node not found: {}", target_id));
+        }
+        
+        // 获取目标节点的地址
+        let target_node = &target_nodes[0];
+        let target_addr = match target_node.addresses.first() {
+            Some(addr) => *addr,
+            None => return CommandResult::Error("Target node has no address".to_string()),
+        };
         
         // 创建消息
         let content = message_text.as_bytes().to_vec();
         let message = Message::new(
             MessageType::Direct,
             context.identity.id.clone(),
-            // 注意：UserId没有实现FromStr trait，所以不能使用parse()
-            // 这里我们使用原始的NodeId作为收件人
-            Some(context.identity.id.clone()),
+            Some(context.identity.id.clone()), // 发件人，这里应该转换为对应的类型
             context.identity.keypair.public.clone(),
             content,
             "text/plain".to_string(),
@@ -137,18 +152,14 @@ impl Command {
             return CommandResult::Error(format!("Failed to sign message: {}", e));
         }
         
-        // 发送消息
-        match context.network.send_message(signed_message).await {
+        // 使用具体的地址发送消息
+        match context.network.send_message_to_address(signed_message, target_addr).await {
             Ok(_) => {
-                info!("Message sent to {}", target_id);
-                CommandResult::Success(format!("Message sent to {}", target_id))
+                info!("Message sent to {} ({})", target_id, target_addr);
+                CommandResult::Success(format!("Message sent to {} ({})", target_id, target_addr))
             },
             Err(e) => {
                 error!("Failed to send message: {}", e);
-                // 如果直接发送失败，我们应该将消息添加到消息池
-                // 注意：这里的实现可能需要根据实际的MessagePool实现进行调整
-                // self.message_pool.add_message(message.id.to_string(), data.clone())
-                //    .map_err(|e| NetworkError::MessagePoolError(e))?;
                 CommandResult::Error(format!("Failed to send message: {}", e))
             }
         }
@@ -281,8 +292,8 @@ impl Command {
         
         // 获取网络状态
         let peers = network.get_connected_peers().await;
-        // 获取路由表大小 - 简化实现
-        let dht_size = 0; // 暂时使用固定值，实际应从PublicDht获取
+        // 获取路由表大小
+        let dht_size = context.dht.routing_table_size();
         
         let result = format!(
             indoc! {"
@@ -306,9 +317,7 @@ impl Command {
         let _dht = &context.dht;
         
         // 获取路由表
-        // 获取路由表 - 简化实现
-        let routes_vec: Vec<(NodeId, NodeInfo)> = Vec::new(); // 暂时使用空列表，实际应从PublicDht获取
-        
+        let routes_vec = context.dht.list_routing_table();
         if routes_vec.is_empty() {
             return CommandResult::Info("DHT routing table is empty.".to_string());
         }
@@ -333,8 +342,8 @@ trait NodeIdExt {
 }
 
 impl NodeIdExt for NodeId {
-    fn from_str(_s: &str) -> Result<NodeId, String> {
-        // 简单实现，实际应根据NodeId的具体实现来适配
-        Ok(NodeId::random())
+    fn from_str(s: &str) -> Result<NodeId, String> {
+        let bytes = hex::decode(s).map_err(|e| format!("Invalid NodeId hex: {}", e))?;
+        NodeId::try_from(bytes.as_slice()).map_err(|e| e.to_string())
     }
 }

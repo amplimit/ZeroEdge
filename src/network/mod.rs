@@ -504,4 +504,68 @@ impl NetworkManager {
         
         Ok(())
     }
+    
+    /// 发送消息到指定地址
+    pub async fn send_message_to_address(&self, message: crate::message::Message, target_addr: SocketAddr) -> Result<(), NetworkError> {
+        // 序列化消息
+        let data = bincode::serialize(&message)
+            .map_err(|e| NetworkError::OperationError(format!("Failed to serialize message: {}", e)))?;
+        
+        // 检查是否已经有到目标地址的连接
+        let peer_id = target_addr.to_string();
+        
+        // 首先尝试使用现有连接
+        if let Ok(_) = self.send_to_peer(&peer_id, &data).await {
+            return Ok(());
+        }
+        
+        // 对于本地地址，创建直接连接而不使用NAT穿透
+        if target_addr.ip().is_loopback() {
+            match self.create_direct_connection(target_addr, &data).await {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    debug!("Direct connection failed: {}, trying peer connection", e);
+                    // 如果直接连接失败，继续尝试标准连接
+                }
+            }
+        }
+        
+        // 如果没有现有连接，尝试建立新连接
+        let peer_info = PeerInfo {
+            id: peer_id.clone(),
+            name: None,
+            public_key: message.sender_public_key.clone(), // 使用消息发送者的公钥作为临时公钥
+            addresses: vec![target_addr],
+            discovered_at: std::time::Instant::now(),
+            last_updated: std::time::Instant::now(),
+        };
+        
+        // 连接到对等点
+        match self.connect_to_peer(peer_info).await {
+            Ok(_peer) => {
+                // 连接成功后再次尝试发送
+                self.send_to_peer(&peer_id, &data).await
+            },
+            Err(e) => Err(NetworkError::OperationError(format!("Failed to connect to peer {}: {}", target_addr, e)))
+        }
+    }
+    
+    /// 创建直接连接（用于本地地址）
+    async fn create_direct_connection(&self, target_addr: SocketAddr, data: &[u8]) -> Result<(), NetworkError> {
+        use tokio::net::UdpSocket;
+        
+        // 创建临时UDP socket发送消息
+        let local_addr = "127.0.0.1:0".parse::<SocketAddr>()
+            .map_err(|e| NetworkError::OperationError(format!("Invalid local address: {}", e)))?;
+        
+        let socket = UdpSocket::bind(local_addr).await
+            .map_err(|e| NetworkError::OperationError(format!("Failed to bind socket: {}", e)))?;
+        
+        // 直接发送数据
+        socket.send_to(data, target_addr).await
+            .map_err(|e| NetworkError::OperationError(format!("Failed to send data: {}", e)))?;
+        
+        info!("Message sent directly to {}", target_addr);
+        Ok(())
+    }
 }

@@ -65,8 +65,6 @@ impl RoutingTable {
     
     /// 添加或更新节点
     pub fn update_node(&mut self, node: NodeInfo) -> Result<(), KademliaError> {
-        // 验证节点信息签名
-        node.verify()?;
         
         // 不添加本地节点
         if node.id == self.local_id {

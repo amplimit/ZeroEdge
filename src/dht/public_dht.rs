@@ -459,6 +459,18 @@ impl PublicDht {
         
         Ok(())
     }
+
+    /// 返回路由表中节点的数量
+    pub fn routing_table_size(&self) -> usize {
+        let table = self.routing_table.read().unwrap();
+        table.len()
+    }
+
+    /// 返回路由表中的所有节点
+    pub fn list_routing_table(&self) -> Vec<(NodeId, NodeInfo)> {
+        let table = self.routing_table.read().unwrap();
+        table.get_all_nodes().collect()
+    }
 }
 
 // 为PublicKey实现Default，用于PublicDhtConfig的默认实现

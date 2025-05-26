@@ -47,6 +47,7 @@ colored = "2.0.0"
 clap = { version = "4.3.0", features = ["derive"] }
 shlex = "1.1.0"
 indoc = "2.0.0"
+dirs = "5.0.1"
 
 [dev-dependencies]
 criterion = "0.5.1"

@@ -11,6 +11,7 @@ ZeroEdge is a pure peer-to-peer (P2P), fully decentralized communication system 
 - **Multi-Device Support**: Use the same identity across multiple devices
 - **Group Chat**: Support for encrypted group communications
 - **Censorship Resistant**: Designed to resist network censorship, ensuring free communication
+- **Enhanced CLI**: Powerful command-line interface with command history, auto-completion, and syntax highlighting
 
 ## Directory Structure
 
@@ -63,60 +64,76 @@ The default configuration file will be created on first run, located at `~/.conf
 
 ## Usage
 
-ZeroEdge is currently a command-line application. Here are the basic operations:
+ZeroEdge features an enhanced command-line interface using the `clap` and `rustyline` libraries, providing command history, auto-completion for commands, and syntax highlighting. Here are all available commands:
 
-1. **Creating an Identity**:
-   On first run, the system will prompt you to create a new identity. Enter a display name and press Enter.
+1. **Getting Help**:
+   ```
+   /help
+   ```
+   Shows a list of all available commands and their descriptions.
 
 2. **Viewing Your Identity**:
    ```
    /whoami
    ```
+   Shows your User ID, Public Key, creation time, and connected devices.
 
 3. **Sending Messages**:
    ```
    /send <node_id> <message>
    ```
+   Send a message to a specific node identified by its ID. Note that the recipient must be discoverable in the DHT network.
 
 4. **Listing Contacts**:
    ```
    /contacts
    ```
+   Displays your contact list. If you haven't added any contacts yet, it will show "No contacts found".
 
 5. **Creating a Group**:
    ```
    /create-group <group-name>
    ```
+   Creates a new chat group with the specified name.
 
 6. **Adding Members to a Group**:
    ```
    /add-to-group <group-id> <node-id>
    ```
+   Adds a contact to an existing group chat.
 
 7. **Finding a Node**:
    ```
    /find <node-id>
    ```
+   Searches for a node with the specified ID in the DHT network. This is essential for establishing communication with other nodes.
 
 8. **Checking Network Status**:
    ```
    /status
    ```
+   Shows your current network status, including connected peers, DHT size, NAT type, and public address.
 
 9. **Viewing DHT Routing Table**:
    ```
    /dht-routes
    ```
+   Displays the DHT routing table information, showing known peers in the network.
 
-10. **Displaying Help**:
-    ```
-    /help
-    ```
-
-11. **Exiting the Application**:
+10. **Exiting the Application**:
     ```
     /exit
     ```
+    ```
+    /quit
+    ```
+    Both commands close the application.
+
+**Note**: 
+- You can enter commands with or without the leading slash (e.g., both `/whoami` and `whoami` will work).
+- To establish communication between instances, both nodes need to discover each other through the DHT network.
+- When running multiple instances on the same machine, use different ports: `zero_edge.exe -p <port_number>`
+- Check network connectivity with `/status` before attempting to send messages.
 
 ## How It Works
 
@@ -127,6 +144,7 @@ ZeroEdge uses a distributed hash table (DHT) for node discovery, combined with a
 3. **Signal Protocol**: For forward-secure message encryption
 4. **Reed-Solomon Encoding**: For fault-tolerant offline message storage
 5. **Multiple NAT Traversal Techniques**: Including UDP hole punching, STUN, and smart relay systems
+6. **Command Line Framework**: Utilizing `clap` for command parsing and `rustyline` for interactive shell features
 
 ## Development
 

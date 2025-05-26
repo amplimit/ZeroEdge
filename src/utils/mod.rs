@@ -1,5 +1,5 @@
 mod logger;
-mod config;
+pub mod config;
 
 pub use logger::setup_logger;
 pub use config::{Config, ConfigError};

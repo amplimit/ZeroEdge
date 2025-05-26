@@ -1,4 +1,4 @@
-use crate::dht::{PublicDht, NodeId, NodeInfo};
+use crate::dht::{PublicDht, NodeId}; // NodeInfo removed
 use crate::network::NetworkManager;
 use crate::identity::{UserIdentity, TrustRecord, UserId}; // TrustRecord, UserId were already here from previous change
 use crate::message::{Message, MessageType};
@@ -7,6 +7,7 @@ use crate::crypto::PublicKey; // Added PublicKey
 
 use std::sync::Arc;
 use std::convert::TryFrom;
+use std::str::FromStr; // Added FromStr import
 // 移除未使用的导入
 // use std::collections::HashMap;
 use chrono::{DateTime, Utc}; // Added chrono import
@@ -313,7 +314,7 @@ impl Command {
             // without further mechanisms in the main application loop (e.g., taking ownership of UserIdentity,
             // updating it, and then saving/passing it back).
             match group_membership_clone.add_member_simplified(
-                contact_user_id.clone(), // UserId
+                UserId(contact_user_id.0), // Correctly pass UserId
                 final_member_public_key,  // PublicKey
                 member_display_name,     // Option<String>
                 context.identity.id.clone(), // added_by: UserId

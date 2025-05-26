@@ -4,7 +4,7 @@ use chacha20poly1305::aead::{Aead, NewAead, Payload};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
-use rand::Rng;
+// Removed: use rand::Rng;
 use ring::hmac;
 use hex;
 

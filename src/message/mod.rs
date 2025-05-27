@@ -9,7 +9,7 @@ pub use message_types::{
     DirectMessage, GroupMessage, SystemMessage
 };
 pub use encryption::{EncryptedMessage, MessageEncryption};
-pub use offline_storage::{OfflineStorage, OfflineMessage};
+pub use offline_storage::{OfflineStorage, OfflineMessage, MessagePriority};
 pub use delivery::{DeliveryReceipt, DeliveryStatus};
 pub use group_messaging::{GroupId, GroupInfo, GroupMembership};
 
@@ -23,4 +23,3 @@ pub use group_messaging::{GroupId, GroupInfo, GroupMembership};
  * - Message delivery status tracking
  * - Group messaging
  */
-

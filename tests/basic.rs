@@ -1,7 +1,9 @@
-use zero_edge::message::{Message, MessageType};
-use zero_edge::identity::UserId;
-use zero_edge::crypto::KeyPair;
-use zero_edge::message::MessageEncryption;
+use zero_edge::{
+    crypto::KeyPair,
+    identity::UserId,
+    message::{Message, MessageType, MessageEncryption},
+};
+
 
 #[test]
 fn test_message_sign_and_verify() {

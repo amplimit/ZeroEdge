@@ -1,7 +1,9 @@
 use crate::crypto::{KeyPair, PublicKey};
+use crate::message::group_messaging::{GroupId, GroupMembership}; // Added imports
 use serde::{Deserialize, Serialize};
 // 移除未使用的导入
 // use ed25519_dalek::Signer;
+use std::collections::HashMap; // Added import for HashMap
 use std::fmt;
 use std::time::SystemTime;
 use thiserror::Error;
@@ -152,6 +154,9 @@ pub struct UserIdentity {
     
     /// User's contacts and their trust levels
     pub trust_store: crate::identity::TrustStore,
+    
+    /// Group memberships of the user
+    pub group_memberships: HashMap<GroupId, GroupMembership>,
 }
 
 impl UserIdentity {
@@ -174,12 +179,16 @@ impl UserIdentity {
         // Create an empty trust store
         let trust_store = crate::identity::TrustStore::new();
         
+        // Create an empty HashMap for group memberships
+        let group_memberships = HashMap::new();
+        
         Ok(Self {
             id,
             keypair,
             profile,
             devices,
             trust_store,
+            group_memberships,
         })
     }
     

@@ -4,7 +4,7 @@ use chacha20poly1305::aead::{Aead, NewAead, Payload};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
-use rand::Rng;
+// Removed: use rand::Rng;
 use ring::hmac;
 use hex;
 
@@ -549,7 +549,7 @@ impl DoubleRatchet {
 
         
         // 解密消息 - 复制消息密钥信息以在错误中使用
-        let message_key_hex = hex::encode(&message_key);
+        let _message_key_hex = hex::encode(&message_key); // Prefixed with underscore
         let key_len = message_key.len();
 
         

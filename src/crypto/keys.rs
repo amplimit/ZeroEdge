@@ -27,86 +27,37 @@ pub struct PublicKey {
     encryption_key: X25519PublicKey,
 }
 
-// 手动实现序列化和反序列化，因为ed25519_dalek::PublicKey没有实现Serialize/Deserialize
 impl Serialize for PublicKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("PublicKey", 2)?;
-        
-        // 序列化Ed25519公钥
-        let ed_key_bytes = self.signing_key.as_bytes();
-        state.serialize_field("signing_key", ed_key_bytes)?;
-        
-        // 序列化X25519公钥
-        let x_key_bytes = self.encryption_key.as_bytes();
-        state.serialize_field("encryption_key", x_key_bytes)?;
-        
-        state.end()
+        let bytes = self.to_bytes().map_err(serde::ser::Error::custom)?;
+        serializer.serialize_bytes(&bytes)
     }
 }
 
 impl<'de> Deserialize<'de> for PublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<PublicKey, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::{self, MapAccess, Visitor};
-        use std::fmt;
-        
         struct PublicKeyVisitor;
-        
-        impl<'de> Visitor<'de> for PublicKeyVisitor {
+        impl<'de> serde::de::Visitor<'de> for PublicKeyVisitor {
             type Value = PublicKey;
-            
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct PublicKey")
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("PublicKey as bytes")
             }
-            
-            fn visit_map<V>(self, mut map: V) -> Result<PublicKey, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut signing_key_bytes = None;
-                let mut encryption_key_bytes = None;
-                
-                while let Some(key) = map.next_key::<String>()? {
-                    match key.as_str() {
-                        "signing_key" => {
-                            if signing_key_bytes.is_some() {
-                                return Err(de::Error::duplicate_field("signing_key"));
-                            }
-                            signing_key_bytes = Some(map.next_value::<[u8; 32]>()?);
-                        }
-                        "encryption_key" => {
-                            if encryption_key_bytes.is_some() {
-                                return Err(de::Error::duplicate_field("encryption_key"));
-                            }
-                            encryption_key_bytes = Some(map.next_value::<[u8; 32]>()?);
-                        }
-                        _ => {
-                            let _ = map.next_value::<serde::de::IgnoredAny>()?;
-                        }
-                    }
-                }
-                
-                let signing_key_bytes = signing_key_bytes.ok_or_else(|| de::Error::missing_field("signing_key"))?;
-                let encryption_key_bytes = encryption_key_bytes.ok_or_else(|| de::Error::missing_field("encryption_key"))?;
-                
-                let signing_key = EdPublicKey::from_bytes(&signing_key_bytes)
-                    .map_err(|_| de::Error::custom("Invalid Ed25519 public key"))?;
-                let encryption_key = X25519PublicKey::from(encryption_key_bytes);
-                
-                Ok(PublicKey {
-                    signing_key,
-                    encryption_key,
-                })
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<PublicKey, E>
+            where E: serde::de::Error {
+                PublicKey::from_bytes(v).map_err(serde::de::Error::custom)
+            }
+            fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<PublicKey, E>
+            where E: serde::de::Error {
+                self.visit_bytes(&v)
             }
         }
-        
-        deserializer.deserialize_map(PublicKeyVisitor)
+        deserializer.deserialize_bytes(PublicKeyVisitor)
     }
 }
 

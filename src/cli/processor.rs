@@ -4,7 +4,7 @@ use crate::identity::UserIdentity;
 
 use colored::*;
 use rustyline::{DefaultEditor, Result as RustylineResult, error::ReadlineError};
-use rustyline::validate::MatchingBracketValidator;
+// Removed: use rustyline::validate::MatchingBracketValidator;
 use rustyline::hint::HistoryHinter;
 use rustyline::highlight::MatchingBracketHighlighter;
 use rustyline::completion::{Completer, Pair};
@@ -277,7 +277,7 @@ impl CommandProcessor {
         
         // 设置自动补全
         let commands: Vec<String> = self.commands.keys().cloned().collect();
-        let config = EditorConfig {
+        let _config = EditorConfig { // Prefixed with underscore
             completer: CommandCompleter { commands },
             highlighter: MatchingBracketHighlighter::new(),
             hinter: HistoryHinter {},

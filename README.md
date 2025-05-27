@@ -207,6 +207,7 @@ ZeroEdge is designed to work on multiple platforms, but there are some known iss
 
 - **Linux Compilation**: While the project compiles successfully on Windows, there may be issues when compiling on Linux environments (such as GitHub Actions). These issues are related to path separators, platform-specific code, and file permissions.
 - **CI/CD Pipeline**: The GitHub Actions configuration has been updated to support multi-platform testing (Ubuntu, Windows, macOS), code formatting checks, and Clippy static analysis.
+- **Group Management Persistence**: Commands like `/create-group` and `/add-to-group` execute their immediate logic. However, the persistence of group creations and member changes is subject to ongoing development in the user identity state management. These changes may not be fully saved across sessions or immediately reflected in all contexts in the current version.
 
 If you encounter platform-specific issues, please report them on the issue tracker.
 

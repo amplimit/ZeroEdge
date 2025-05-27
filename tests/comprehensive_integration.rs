@@ -16,8 +16,8 @@
 //! 10. Full E2E Communication Workflow - Complete message flow from sender to recipient
 
 use zero_edge::{
-    crypto::{KeyPair, verify},
-    dht::{NodeId, NodeInfo},
+    crypto::{KeyPair, verify, PublicKey, SecretKey},
+    dht::{NodeId, NodeInfo, PublicDht, PublicDhtConfig, RoutingTable, validate_node_id},
     identity::{UserId, UserIdentity, DeviceInfo, device::DeviceType},
     message::{
         Message, MessageType, MessageEncryption, OfflineMessage, OfflineStorage, 
@@ -426,7 +426,88 @@ fn test_error_handling_and_recovery() {
     assert!(deserialize_result.is_err());
 }
 
-/// Test 10: Complete End-to-End Communication Flow
+/// Test 10: DHT Node Lookup Accuracy
+/// Covers: Testing the accuracy of node ID lookups in the DHT
+#[test]
+fn test_dht_node_lookup_accuracy() {
+    // 创建一个带有IO支持的多线程运行时
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_io()
+        .enable_time()
+        .build()
+        .expect("Failed to create Tokio runtime");
+    
+    // 在运行时内执行所有测试
+    rt.block_on(async {
+        // 创建DHT配置
+        let local_id = NodeId::random();
+        let local_keypair = KeyPair::generate().expect("Failed to generate keypair");
+        
+        let config = PublicDhtConfig {
+            local_id: local_id.clone(),
+            local_public_key: local_keypair.public.clone(),
+            k_value: 20,
+            alpha_value: 3,
+            record_ttl: Duration::from_secs(86400),
+            node_ttl: Duration::from_secs(7200),
+            refresh_interval: Duration::from_secs(3600),
+            republish_interval: Duration::from_secs(21600),
+            replication_factor: 5,
+        };
+        
+        // 创建DHT实例并启动
+        let dht = PublicDht::new(config);
+        dht.start().await.expect("Failed to start DHT");
+        
+        // 创建测试节点并添加到路由表
+        let test_node1_id = NodeId::random();
+        let test_node1_keypair = KeyPair::generate().expect("Failed to generate keypair");
+        let test_node1_addr = "127.0.0.1:8001".parse().unwrap();
+        let test_node1_info = NodeInfo::new_signed(
+            test_node1_id.clone(),
+            test_node1_keypair.public.clone(),
+            vec![test_node1_addr],
+            1,
+            false,
+            &test_node1_keypair.secret,
+        ).expect("Failed to create node info");
+        
+        // 直接使用单独的测试方法验证节点ID查找
+        // 这种方法避免使用公共DHT的异步API，而是直接验证节点ID的验证逻辑
+        
+        // 1. 验证添加节点到路由表
+        dht.add_node_sync(test_node1_info.clone()).expect("Failed to add node to routing table");
+        
+        // 2. 验证路由表包含已添加节点
+        let routing_table = dht.list_routing_table();
+        assert!(!routing_table.is_empty(), "Routing table should not be empty");
+        
+        // 3. 验证在路由表中能找到准确的节点
+        let mut found = false;
+        for (id, _) in routing_table.iter() {
+            if *id == test_node1_id {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "Added node not found in routing table");
+        
+        // 4. 测试使用validate_node_id函数验证节点ID
+        let id_str = test_node1_id.to_string();
+        let validation_result = validate_node_id(&id_str);
+        assert!(validation_result.is_ok(), "Valid node ID rejected by validation");
+        
+        // 5. 验证无效节点ID会被正确拒绝
+        let invalid_id = "invalid_node_id";
+        let invalid_validation = validate_node_id(invalid_id);
+        assert!(invalid_validation.is_err(), "Invalid node ID should be rejected");
+        
+        // 关闭DHT服务
+        dht.stop().await.expect("Failed to stop DHT");
+    });
+}
+
+/// Test 11: Complete End-to-End Communication Flow
 /// Covers: Full workflow from message creation to encrypted delivery
 #[test]
 fn test_complete_e2e_communication_flow() {

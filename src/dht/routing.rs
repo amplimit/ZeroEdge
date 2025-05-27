@@ -63,6 +63,13 @@ impl RoutingTable {
         255
     }
     
+    /// 添加节点到路由表
+    /// 
+    /// 这是`update_node`的别名，增强代码可读性
+    pub fn add_node(&mut self, node: NodeInfo) -> Result<(), KademliaError> {
+        self.update_node(node)
+    }
+    
     /// 添加或更新节点
     pub fn update_node(&mut self, node: NodeInfo) -> Result<(), KademliaError> {
         

@@ -162,6 +162,23 @@ impl NodeInfo {
         }
     }
     
+    /// Creates a new NodeInfo and signs it
+    pub fn new_signed(
+        id: NodeId, 
+        public_key: PublicKey, 
+        addresses: Vec<SocketAddr>, 
+        protocol_version: u16,
+        is_relay: bool,
+        secret_key: &crate::crypto::SecretKey,
+    ) -> Result<Self, KademliaError> {
+        let mut node_info = Self::new(id, public_key, addresses, protocol_version, is_relay);
+        
+        // 使用提供的密钥签名
+        node_info.sign(secret_key)?;
+        
+        Ok(node_info)
+    }
+    
     /// Signs the node info with the given secret key
     pub fn sign(&mut self, secret_key: &crate::crypto::SecretKey) -> Result<(), KademliaError> {
         // Create a copy without the signature field

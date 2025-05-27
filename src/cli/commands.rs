@@ -335,13 +335,17 @@ impl Command {
     }
     
     /// 查找节点命令
-    async fn find(context: CommandContext) -> CommandResult {
-        // 检查参数
+    pub async fn find(mut context: CommandContext) -> CommandResult {
         if context.args.is_empty() {
             return CommandResult::Error("Usage: /find <node-id>".to_string());
         }
         
         let node_id_str = &context.args[0];
+        
+        // 验证节点ID格式和长度
+        if node_id_str.len() != 64 || !node_id_str.chars().all(|c| c.is_ascii_hexdigit()) {
+            return CommandResult::Error(format!("Invalid node ID format: {}", node_id_str));
+        }
         
         // 解析节点ID
         let node_id = match NodeId::from_str(node_id_str) {
@@ -351,24 +355,37 @@ impl Command {
         
         // 查找节点
         match context.dht.find_node(&node_id).await {
-            Ok(node) => {
-                // 返回的是节点列表，而不是单个节点
-                let node_info = if node.is_empty() {
-                    "No nodes found".to_string()
+            Ok(nodes) => {
+                // 返回的是节点列表，可能为空
+                if nodes.is_empty() {
+                    // 未找到匹配的节点，返回清晰的错误消息
+                    CommandResult::Error(format!("Node with ID '{}' not found in the network", node_id))
                 } else {
-                    let first_node = &node[0];
-                    format!("ID: {}, Addresses: {}", 
-                        first_node.id.to_string(),
-                        first_node.addresses.first().map_or("Unknown".to_string(), |addr| addr.to_string())
-                    )
-                };
-                CommandResult::Success(format!("Found node: {}", node_info))
+                    // 找到节点，显示详细信息
+                    let mut result = format!("Found {} node(s) matching ID '{}':\n", nodes.len(), node_id);
+                    
+                    for (i, node) in nodes.iter().enumerate() {
+                        let addr_info = node.addresses.first()
+                            .map_or("Unknown address".to_string(), |addr| addr.to_string());
+                        
+                        result.push_str(&format!("{}. Node ID: {}\n   Address: {}\n", 
+                            i+1, 
+                            node.id.to_string(),
+                            addr_info
+                        ));
+                    }
+                    
+                    CommandResult::Success(result)
+                }
             },
             Err(e) => {
-                CommandResult::Error(format!("Node not found: {}", e))
+                // DHT操作错误
+                CommandResult::Error(format!("Error during node lookup: {}", e))
             }
         }
     }
+    
+
     
     /// 显示身份信息命令
     fn whoami(context: CommandContext) -> CommandResult {

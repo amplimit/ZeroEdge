@@ -3,12 +3,14 @@ mod routing;
 mod storage;
 mod public_dht;
 mod private_dht;
+mod validation;
 
 pub use kademlia::{KademliaConfig, KademliaNode, KademliaError, NodeId, NodeInfo};
 pub use routing::RoutingTable;
 pub use storage::{DhtStorage, DhtValue};
 pub use public_dht::{PublicDht, PublicDhtConfig};
 pub use private_dht::{PrivateDht, PrivateDhtConfig};
+pub use validation::validate_node_id;
 
 /*
  * Distributed Hash Table (DHT) implementation for ZeroEdge

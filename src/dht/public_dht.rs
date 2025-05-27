@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc;
-use log::{debug, info, warn};
+use log::{debug, info, warn, error};
 // 移除未使用的导入
 // use thiserror::Error;
 
@@ -274,31 +274,24 @@ impl PublicDht {
                         
                         match op {
                             DhtOperation::FindNode { target, result_tx } => {
-                                // 查找节点逻辑
-                                let closest = {
+                                // 查找节点逻辑 - 只返回精确匹配的节点
+                                let result = {
                                     let table = routing_table.read().unwrap();
                                     
-                                    // 首先检查是否有精确匹配
-                                    let exact_match = table.get_node(&target);
-                                    
-                                    if let Some(node) = exact_match {
-                                        // 找到精确匹配，只返回这个节点
+                                    // 检查是否有精确匹配
+                                    if let Some(node) = table.get_node(&target) {
+                                        // 找到精确匹配，返回该节点
                                         debug!("Found exact match for node ID: {}", target);
                                         vec![node.clone()]
                                     } else {
-                                        // 没有精确匹配，获取最近的节点
-                                        let closest_nodes = table.get_closest(&target, config.k_value);
-                                        
-                                        // 过滤掉距离太远的节点
-                                        // 只返回距离足够近的节点（在实际应用中应设置一个合理的阈值）
-                                        // 但由于这是测试环境，我们保持空结果以显示错误
+                                        // 没有精确匹配，返回空列表
                                         debug!("No exact match found for node ID: {}", target);
                                         Vec::new()
                                     }
                                 };
                                 
-                                // 返回匹配的节点或空列表
-                                let _ = result_tx.send(closest).await;
+                                // 返回精确匹配的节点或空列表
+                                let _ = result_tx.send(result).await;
                             },
                             DhtOperation::FindValue { key, result_tx } => {
                                 // 查找值逻辑
@@ -410,17 +403,95 @@ impl PublicDht {
     }
     
     /// 查找节点
+    /// 
+    /// 根据给定的节点ID查找节点。如果找到精确匹配的节点，返回该节点。
+    /// 如果没有找到精确匹配，返回空列表。
     pub async fn find_node(&self, target: &NodeId) -> Result<Vec<NodeInfo>, KademliaError> {
+        // 注意: 不要让读锁跨越 await 点，所以需要在异步操作前完全获取数据并释放锁
+        
+        // 首先从路由表中查找精确匹配，并获取路由表信息用于日志记录
+        let exact_match_node: Option<NodeInfo>;
+        let table_size: usize;
+        let nodes_preview: Vec<String>;
+        
+        {
+            // 使用封闭的作用域来确保锁不会跨越 await 点
+            let routing_table = self.routing_table.read().unwrap();
+            table_size = routing_table.len();
+            
+            // 日志显示前5个节点预览
+            nodes_preview = routing_table.get_all_nodes()
+                .take(5)
+                .map(|(id, _)| format!("{}...", &id.to_string()[..8]))
+                .collect();
+                
+            // 检查精确匹配
+            exact_match_node = routing_table.get_node(target).cloned();
+        } // 路由表锁在这里释放
+        
+        info!("Finding node: {}, current routing table size: {}", target, table_size);
+        
+        if !nodes_preview.is_empty() {
+            info!("Routing table preview: {}", nodes_preview.join(", "));
+        }
+        
+        // 如果找到精确匹配，直接返回
+        if let Some(node) = exact_match_node {
+            info!("Found exact match for node ID: {} in local routing table", target);
+            return Ok(vec![node]);
+        }
+        
+        // 如果在本地路由表中没有找到，创建操作并发送
         let (tx, mut rx) = mpsc::channel(1);
         
-        // 发送查找节点操作
-        self.op_tx.send(DhtOperation::FindNode {
+        // 创建并发送查找节点操作
+        let op = DhtOperation::FindNode {
             target: target.clone(),
             result_tx: tx,
-        }).await.map_err(|e| KademliaError::OperationFailed(e.to_string()))?;
+        };
+        
+        debug!("Sending FindNode operation for node ID: {}", target);
+        
+        // 发送操作
+        if let Err(e) = self.op_tx.send(op).await {
+            error!("Failed to send FindNode operation: {}", e);
+            return Err(KademliaError::OperationFailed(format!("Failed to send FindNode operation: {}", e)));
+        }
         
         // 等待结果
-        rx.recv().await.ok_or_else(|| KademliaError::OperationFailed("Find node operation failed".to_string()))
+        match rx.recv().await {
+            Some(nodes) => {
+                let count = nodes.len();
+                if count > 0 {
+                    info!("FindNode operation found {} node(s) for ID: {}", count, target);
+                } else {
+                    info!("FindNode operation found no nodes for ID: {}", target);
+                }
+                Ok(nodes)
+            },
+            None => {
+                let error_msg = format!("Find node operation failed: no response received");
+                error!("{}", error_msg);
+                Err(KademliaError::OperationFailed(error_msg))
+            }
+        }
+    }
+    
+    /// 查找最接近目标ID的节点（标准Kademlia查找）
+    /// 
+    /// 这个方法实现标准的Kademlia DHT查找逻辑，返回最接近目标ID的k个节点。
+    /// 即使没有精确匹配，也会返回最接近的节点。
+    pub async fn find_closest_nodes(&self, target: &NodeId, count: Option<usize>) -> Result<Vec<NodeInfo>, KademliaError> {
+        let k_value = count.unwrap_or(self.config.k_value);
+        
+        // 直接从路由表中获取最接近的节点
+        let closest_nodes = {
+            let table = self.routing_table.read().unwrap();
+            table.get_closest(target, k_value)
+        };
+        
+        debug!("Found {} closest nodes for target ID: {}", closest_nodes.len(), target);
+        Ok(closest_nodes)
     }
     
     /// 手动添加节点到路由表 (同步版本)

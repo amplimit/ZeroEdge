@@ -1,5 +1,4 @@
 use crate::dht::NodeId;
-use std::str::FromStr;
 
 /// 验证节点ID的格式和有效性
 /// 

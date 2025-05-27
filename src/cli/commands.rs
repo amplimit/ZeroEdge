@@ -335,7 +335,7 @@ impl Command {
     }
     
     /// 查找节点命令
-    pub async fn find(mut context: CommandContext) -> CommandResult {
+    pub async fn find(context: CommandContext) -> CommandResult {
         if context.args.is_empty() {
             return CommandResult::Error("Usage: /find <node-id>".to_string());
         }

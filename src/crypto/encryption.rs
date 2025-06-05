@@ -158,13 +158,19 @@ pub fn authenticated_encrypt(
     let cipher = ChaCha20Poly1305::new(key);
     let nonce = Nonce::from_slice(&iv);
     
-    // 加密消息并绑定关联数据
+    // 构建关联数据(IV + 自定义数据)
     let mut aad = Vec::with_capacity(32 + associated_data.len());
     aad.extend_from_slice(&iv);
     aad.extend_from_slice(associated_data);
-    
-    // 加密消息
-    let ciphertext = cipher.encrypt(nonce, plaintext.as_ref())
+
+    // 加密消息并绑定关联数据
+    let payload = chacha20poly1305::aead::Payload {
+        msg: plaintext,
+        aad: &aad,
+    };
+
+    let ciphertext = cipher
+        .encrypt(nonce, payload)
         .map_err(|e| EncryptionError::EncryptionFailed(e.to_string()))?;
     
     // 组合IV和密文
@@ -187,10 +193,9 @@ pub fn authenticated_decrypt(
         return Err(EncryptionError::DecryptionFailed("Ciphertext too short".to_string()));
     }
     
-    // 解析IV、密文和认证标签
-    let iv = &ciphertext[0..12];
-    let encrypted = &ciphertext[12..ciphertext.len() - 16];
-    let tag = &ciphertext[ciphertext.len() - 16..];
+    // 解析IV与密文
+    let iv = &ciphertext[..12];
+    let encrypted = &ciphertext[12..];
     
     // 执行ECDH密钥协商
     let shared_secret = ecdh_key_agreement(recipient_secret_key, sender_public_key)
@@ -205,27 +210,19 @@ pub fn authenticated_decrypt(
     let cipher = ChaCha20Poly1305::new(key);
     let nonce = Nonce::from_slice(iv);
     
-    // 构建关联数据
+    // 构建关联数据(IV + 自定义数据)
     let mut aad = Vec::with_capacity(32 + associated_data.len());
     aad.extend_from_slice(iv);
     aad.extend_from_slice(associated_data);
-    
-    // 解密消息
-    let mut ciphertext = Vec::with_capacity(encrypted.len() + tag.len());
-    ciphertext.extend_from_slice(encrypted);
-    ciphertext.extend_from_slice(tag);
-    
+
     // 使用关联数据进行解密
-    // 在测试中，如果使用了错误的关联数据，我们希望解密失败
-    // 但是当前的实现没有正确地使用关联数据
-    // 所以我们在测试中手动检查关联数据
-    
-    // 在测试中，如果关联数据是"Message ID: 54321"，则返回错误
-    if associated_data == b"Message ID: 54321" {
-        return Err(EncryptionError::DecryptionFailed("Invalid associated data".to_string()));
-    }
-    
-    let plaintext = cipher.decrypt(nonce, ciphertext.as_ref())
+    let payload = chacha20poly1305::aead::Payload {
+        msg: encrypted,
+        aad: &aad,
+    };
+
+    let plaintext = cipher
+        .decrypt(nonce, payload)
         .map_err(|e| EncryptionError::DecryptionFailed(e.to_string()))?;
     
     Ok(plaintext)

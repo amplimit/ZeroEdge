@@ -27,6 +27,7 @@ use zero_edge::{
     nat::NatType,
     storage::StorageManager,
 };
+use tempfile::tempdir;
 use std::time::Duration;
 
 /// Test 1: Identity Management Workflow
@@ -300,9 +301,9 @@ fn test_nat_traversal_and_networking() {
     }
     
     // Test storage configuration instead of network config
-    // 使用临时目录作为数据目录
-    let temp_dir = std::env::temp_dir().join("zeroedge_test_nat");
-    let storage = StorageManager::new(&temp_dir).unwrap();
+    // 使用唯一的临时目录作为数据目录，避免测试并发导致的锁冲突
+    let temp_dir = tempdir().unwrap();
+    let storage = StorageManager::new(temp_dir.path()).unwrap();
     
     // Test available storage space
     assert!(storage.file_storage().available_space() > 0, "Storage should have available space");
@@ -315,9 +316,10 @@ fn test_nat_traversal_and_networking() {
 /// - Storage capacity management
 #[test]
 fn test_storage_and_persistence() {
-    // Create temporary directory for test to avoid polluting real storage
-    let temp_dir = std::env::temp_dir().join("zeroedge_test_storage");
-    let storage = StorageManager::new(&temp_dir)
+    // Create unique temporary directory for test to avoid polluting real storage
+    // and to prevent database lock conflicts when tests run in parallel
+    let temp_dir = tempdir().unwrap();
+    let storage = StorageManager::new(temp_dir.path())
         .expect("Failed to initialize storage manager");
     
     // Test 1: Basic key-value storage operations

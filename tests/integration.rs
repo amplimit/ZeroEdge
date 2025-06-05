@@ -106,6 +106,64 @@ fn test_full_offline_encrypt_store_retrieve_flow() {
     ).expect("Failed to decrypt rebuilt message");
     
     // Verify the final decrypted message matches the original
-    assert_eq!(final_decrypted_msg.content, msg.content, 
+    assert_eq!(final_decrypted_msg.content, msg.content,
         "Message content changed through the full offline flow");
+}
+
+/// Tests bidirectional messaging between two users.
+/// This ensures that both Alice and Bob can send encrypted
+/// messages to each other and decrypt them successfully.
+#[test]
+fn test_two_way_direct_messages() {
+    let alice_kp = KeyPair::generate().unwrap();
+    let bob_kp = KeyPair::generate().unwrap();
+
+    let alice_id = UserId([1; 32]);
+    let bob_id = UserId([2; 32]);
+
+    // Alice sends a message to Bob
+    let mut msg_ab = Message::new(
+        MessageType::Direct,
+        alice_id.clone(),
+        Some(bob_id.clone()),
+        alice_kp.public.clone(),
+        b"Hello Bob".to_vec(),
+        "text/plain".to_string(),
+        1,
+        None,
+    );
+    msg_ab.sign(&alice_kp.secret).unwrap();
+
+    let encrypted_ab = MessageEncryption::encrypt_message(
+        &msg_ab,
+        &bob_kp.public,
+        &alice_kp.secret,
+    ).unwrap();
+    let decrypted_ab = MessageEncryption::decrypt_message(&encrypted_ab, &bob_kp.secret).unwrap();
+    assert_eq!(decrypted_ab.content, msg_ab.content);
+    assert_eq!(decrypted_ab.sender_id, msg_ab.sender_id);
+    assert_eq!(decrypted_ab.recipient_id, msg_ab.recipient_id);
+
+    // Bob replies to Alice
+    let mut msg_ba = Message::new(
+        MessageType::Direct,
+        bob_id.clone(),
+        Some(alice_id.clone()),
+        bob_kp.public.clone(),
+        b"Hi Alice".to_vec(),
+        "text/plain".to_string(),
+        1,
+        None,
+    );
+    msg_ba.sign(&bob_kp.secret).unwrap();
+
+    let encrypted_ba = MessageEncryption::encrypt_message(
+        &msg_ba,
+        &alice_kp.public,
+        &bob_kp.secret,
+    ).unwrap();
+    let decrypted_ba = MessageEncryption::decrypt_message(&encrypted_ba, &alice_kp.secret).unwrap();
+    assert_eq!(decrypted_ba.content, msg_ba.content);
+    assert_eq!(decrypted_ba.sender_id, msg_ba.sender_id);
+    assert_eq!(decrypted_ba.recipient_id, msg_ba.recipient_id);
 }

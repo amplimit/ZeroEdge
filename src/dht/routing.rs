@@ -6,6 +6,7 @@ const BUCKET_SIZE: usize = 20; // k值，每个k-bucket中存放的最大节点�
 const BUCKET_COUNT: usize = 256; // 桶的数量，对应NodeId的比特数
 
 /// 路由表实现，基于Kademlia的k-bucket结构
+#[derive(Clone)]
 pub struct RoutingTable {
     /// 本地节点ID
     local_id: NodeId,

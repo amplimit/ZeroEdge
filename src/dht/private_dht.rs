@@ -1,5 +1,5 @@
 use crate::crypto::{KeyPair, PublicKey};
-use crate::dht::{KademliaConfig, KademliaNode, NodeId};
+use crate::dht::{KademliaConfig, KademliaNode, NodeId, NodeInfo};
 // 移除未使用的导入
 // use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -97,8 +97,19 @@ impl PrivateDht {
             replication_factor: config.replication_factor,
         };
         
+        // 创建本地节点信息（临时）
+        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+        let temp_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
+        let temp_node_info = NodeInfo::new(
+            config.local_id.clone(),
+            config.local_public_key.clone(),
+            vec![temp_addr],
+            1,
+            false,
+        );
+        
         // 创建Kademlia节点
-        let node = Arc::new(KademliaNode::new(kademlia_config));
+        let node = Arc::new(KademliaNode::new(kademlia_config, temp_node_info));
         
         // 在赋值前先获取需要的值
         let access_list = config.access_list.clone();

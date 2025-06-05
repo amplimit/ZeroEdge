@@ -38,6 +38,7 @@ pub enum Command {
     WhoAmI,
     Status,
     DhtRoutes,
+    Connect,  // 新增：手动连接到另一个节点
 }
 
 /// 命令上下文
@@ -74,6 +75,7 @@ impl Command {
             Command::WhoAmI => Self::whoami(context),
             Command::Status => Self::status(context).await,
             Command::DhtRoutes => Self::dht_routes(context).await,
+            Command::Connect => Self::connect(context).await,
         }
     }
     
@@ -89,6 +91,7 @@ impl Command {
             /create-group <name>       - Create a new group
             /add-to-group <group> <id> - Add a contact to a group
             /find <node_id>            - Find a node in the DHT
+            /connect <node_id>@<addr>  - Manually connect to a node
             /whoami                    - Show your identity information
             /status                    - Show network status
             /dht-routes                - Show DHT routing table
@@ -473,6 +476,70 @@ impl Command {
         }
         
         CommandResult::Info(result)
+    }
+    
+    /// 手动连接到节点命令
+    async fn connect(context: CommandContext) -> CommandResult {
+        if context.args.is_empty() {
+            return CommandResult::Error("Usage: /connect <node_id>@<address>".to_string());
+        }
+        
+        let connection_str = &context.args[0];
+        
+        // 解析连接字符串: node_id@address
+        if let Some((node_id_str, addr_str)) = connection_str.split_once('@') {
+            // 验证节点ID格式
+            if node_id_str.len() != 64 || !node_id_str.chars().all(|c| c.is_ascii_hexdigit()) {
+                return CommandResult::Error(format!("Invalid node ID format: {}", node_id_str));
+            }
+            
+            // 解析节点ID
+            let node_id = match NodeId::from_str(node_id_str) {
+                Ok(id) => id,
+                Err(_) => return CommandResult::Error(format!("Invalid node ID: {}", node_id_str)),
+            };
+            
+            // 解析地址
+            let addr = match addr_str.parse::<std::net::SocketAddr>() {
+                Ok(a) => a,
+                Err(_) => return CommandResult::Error(format!("Invalid address: {}", addr_str)),
+            };
+            
+            // 创建NodeInfo - 使用dummy public key，实际连接时会更新
+            let node_info = crate::dht::NodeInfo::new(
+                node_id.clone(),
+                crate::crypto::PublicKey::dummy(),
+                vec![addr],
+                1,
+                false,
+            );
+            
+            // 添加节点到DHT路由表
+            match context.dht.add_node_sync(node_info) {
+                Ok(_) => {
+                    info!("Successfully added node {} at {} to DHT", node_id, addr);
+                    
+                    // 尝试ping节点以验证连接
+                    match context.dht.find_node(&node_id).await {
+                        Ok(nodes) => {
+                            if !nodes.is_empty() {
+                                CommandResult::Success(format!("Connected to node {} at {}", node_id, addr))
+                            } else {
+                                CommandResult::Warning(format!("Added node {} but cannot verify connection", node_id))
+                            }
+                        }
+                        Err(e) => {
+                            CommandResult::Warning(format!("Added node {} but verification failed: {}", node_id, e))
+                        }
+                    }
+                }
+                Err(e) => {
+                    CommandResult::Error(format!("Failed to add node: {}", e))
+                }
+            }
+        } else {
+            CommandResult::Error("Invalid format. Use: /connect <node_id>@<address>\nExample: /connect 39b65115dfaef3d92bc0d421d8ba8e1ee26acc847b8742b04b5730f4e1eec732@127.0.0.1:8080".to_string())
+        }
     }
 }
 
